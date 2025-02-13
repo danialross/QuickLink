@@ -1,0 +1,9 @@
+.idea/
+.next/
+node_modules/
+.prettierrc
+Dockerfile
+docker-compose.yml
+.dockerignore
+.gitignore
+.gitattributes
