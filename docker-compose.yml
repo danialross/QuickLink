@@ -8,6 +8,11 @@ services:
       - ./src:/usr/app/src
     environment:
       - NODE_ENV=development
+      - MONGODB_URI=mongodb://admin:p%40ssw0rd@mongo-db:27017/quicklinkdb?authSource=admin
+      - MONGODB_COLLECTION=files
+      - CHOKIDAR_USEPOLLING=1
+      - WATCHPACK_POLLING=true
+      - NEXTJS_IGNORE_ESLINT=1
     depends_on:
       - db
 
@@ -18,6 +23,12 @@ services:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: p@ssw0rd
+      MONGO_INITDB_DATABASE: quicklinkdb
+    command: [ "mongod","--auth" ]
 
 volumes:
   mongo-data:
