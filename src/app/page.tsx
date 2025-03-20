@@ -3,6 +3,7 @@ import { RiLinksLine } from "react-icons/ri";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { MdContentCopy } from "react-icons/md";
 import { MdOutlineFileDownload, MdClear } from "react-icons/md";
+import { getCountdownTime } from "@/utils/utils";
 
 export default function Home() {
     const [fileData, setFileData] = useState<{
@@ -12,8 +13,12 @@ export default function Home() {
     const inputRef = useRef<HTMLInputElement>(null);
     const [canUpload, setCanUpload] = useState<boolean>(false);
     const [isFileTooBig, setIsFileTooBig] = useState(false);
+    //number of seconds left for link to be valid
+    const [fileValidityTimer, setFileValidityTimer] = useState<number | null>(
+        null,
+    );
 
-    const uploadFile = async (e: FormEvent<HTMLFormElement>) => {
+    const handleUploadFile = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (inputRef.current && inputRef.current.files) {
             const file = inputRef.current.files[0];
@@ -27,21 +32,21 @@ export default function Home() {
                     method: "POST",
                     body: formData,
                 });
-                const { fileId } = await result.json();
-                setFileData({ name: file.name, id: fileId });
                 if (!result.ok) {
-                    console.log("Failed to generate file's Id");
-                    return;
+                    throw new Error("Failed to generate file's Id");
                 }
+                const { fileId } = await result.json();
+                //60 seconds * 60 minutes
+                setFileValidityTimer(60 * 60);
+                setFileData({ name: file.name, id: fileId });
             } catch (error) {
-                console.log(error);
+                console.error(error);
             }
-
             handleRemoveFile();
         }
     };
 
-    const handleFileChange = () => {
+    const handleChangeFile = () => {
         const file: File | null = inputRef?.current?.files?.[0] || null;
         if (!file) {
             return;
@@ -58,9 +63,11 @@ export default function Home() {
 
     const handleCopyText = () => {
         try {
-            // navigator.clipboard.writeText(file);
+            navigator.clipboard.writeText(
+                `${process.env.DOMAIN}/api/${fileData?.id}`,
+            );
         } catch (e) {
-            console.log("Could not copy URL");
+            console.log("Could not copy URL : ", (e as Error).message);
         }
     };
 
@@ -75,11 +82,51 @@ export default function Home() {
         }
     };
 
+    const handleDownloadFile = async () => {
+        try {
+            const result = await fetch(`/api/${fileData?.id}`);
+            if (!result.ok) {
+                throw new Error("Failed to download file");
+            }
+            const resultData = await result.json();
+            const byteCharacters = atob(resultData.file);
+            const byteNumbers = new Uint8Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const blob = new Blob([byteNumbers], { type: resultData.type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = resultData.name;
+            document.body.appendChild(a);
+            a.click();
+        } catch (e) {
+            console.error((e as Error).message);
+        }
+    };
+
     useEffect(() => {
         if (isFileTooBig) {
             setTimeout(() => setIsFileTooBig(false), 5000);
         }
     }, [isFileTooBig]);
+
+    useEffect(() => {
+        if (!fileValidityTimer || fileValidityTimer <= 0) {
+            setFileValidityTimer(null);
+            setFileData(null);
+            return;
+        }
+
+        const timeoutId = setTimeout(() => {
+            setFileValidityTimer(fileValidityTimer - 1);
+        }, 1000);
+
+        return () => {
+            clearTimeout(timeoutId);
+        };
+    }, [fileValidityTimer]);
 
     return (
         <div
@@ -95,7 +142,7 @@ export default function Home() {
                 Upload a file to generate a link that can be shared with others
                 for easy access
             </p>
-            <form onSubmit={uploadFile}>
+            <form onSubmit={handleUploadFile}>
                 <div className={"w-fit flex gap-4 pb-8"}>
                     <div
                         className={
@@ -105,7 +152,7 @@ export default function Home() {
                         {isFileTooBig && (
                             <div
                                 className={
-                                    "absolute -top-7 left-1/2 -translate-x-1/2 text-sm text-yellow-200 text-nowrap"
+                                    "absolute -top-7 left-1/2 -translate-x-1/2 text-sm text-tertiary text-nowrap"
                                 }
                             >
                                 File is too big, must be 16MB or less
@@ -114,7 +161,7 @@ export default function Home() {
                         <input
                             type="file"
                             ref={inputRef}
-                            onChange={handleFileChange}
+                            onChange={handleChangeFile}
                             className={`transition-all duration-300 ease-in-out w-full`}
                         />
                         {canUpload && (
@@ -142,9 +189,15 @@ export default function Home() {
                 className={`w-full flex flex-col justify-center items-center transition-opacity duration-200 ease-in-out ${fileData ? "opacity-100" : "opacity-0"}`}
             >
                 {fileData && (
-                    <p className={"pb-4 text-center"}>
-                        {fileData.name} is Ready!
-                    </p>
+                    <div className={"text-center pb-4"}>
+                        <p>{fileData.name} is ready!</p>
+                        {fileValidityTimer && (
+                            <p className={"text-sm text-tertiary"}>
+                                This link is only valid for{" "}
+                                {getCountdownTime(fileValidityTimer)}
+                            </p>
+                        )}
+                    </div>
                 )}
                 <div
                     className={`p-2 rounded-lg flex justify-center items-center `}
@@ -155,6 +208,7 @@ export default function Home() {
                             className={
                                 "text-secondary hover:scale-150 hover:text-accent transition-transform duration-200 ease-in-out"
                             }
+                            onClick={handleDownloadFile}
                         />
                     </div>
                     <div className={"w-20  flex justify-center items-center"}>

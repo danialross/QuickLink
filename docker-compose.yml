@@ -9,6 +9,7 @@ services:
     environment:
       - NODE_ENV=development
       - MONGODB_URI=mongodb://admin:p%40ssw0rd@mongo-db:27017/quicklinkdb?authSource=admin
+      - DOMAIN=http://localhost:3000
       - MONGODB_COLLECTION=files
       - CHOKIDAR_USEPOLLING=1
       - WATCHPACK_POLLING=true
