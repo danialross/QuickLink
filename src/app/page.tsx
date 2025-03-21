@@ -3,7 +3,7 @@ import { RiLinksLine } from "react-icons/ri";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { MdContentCopy } from "react-icons/md";
 import { MdOutlineFileDownload, MdClear } from "react-icons/md";
-import { getCountdownTime } from "@/utils/utils";
+import { getCountdownTime, handleDownloadFile } from "@/utils/utils";
 
 export default function Home() {
     const [fileData, setFileData] = useState<{
@@ -17,6 +17,7 @@ export default function Home() {
     const [fileValidityTimer, setFileValidityTimer] = useState<number | null>(
         null,
     );
+    const [isShowingCopiedAlert, setIsShowingCopiedAlert] = useState(false);
 
     const handleUploadFile = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -64,8 +65,9 @@ export default function Home() {
     const handleCopyText = () => {
         try {
             navigator.clipboard.writeText(
-                `${process.env.DOMAIN}/api/${fileData?.id}`,
+                `${process.env.NEXT_PUBLIC_DOMAIN}/${fileData?.id}`,
             );
+            setIsShowingCopiedAlert(true);
         } catch (e) {
             console.log("Could not copy URL : ", (e as Error).message);
         }
@@ -79,30 +81,6 @@ export default function Home() {
         ) {
             inputRef.current.value = "";
             setCanUpload(false);
-        }
-    };
-
-    const handleDownloadFile = async () => {
-        try {
-            const result = await fetch(`/api/${fileData?.id}`);
-            if (!result.ok) {
-                throw new Error("Failed to download file");
-            }
-            const resultData = await result.json();
-            const byteCharacters = atob(resultData.file);
-            const byteNumbers = new Uint8Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const blob = new Blob([byteNumbers], { type: resultData.type });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = resultData.name;
-            document.body.appendChild(a);
-            a.click();
-        } catch (e) {
-            console.error((e as Error).message);
         }
     };
 
@@ -127,6 +105,18 @@ export default function Home() {
             clearTimeout(timeoutId);
         };
     }, [fileValidityTimer]);
+
+    useEffect(() => {
+        if (!isShowingCopiedAlert) {
+            return;
+        }
+
+        const timeoutID = setTimeout(() => {
+            setIsShowingCopiedAlert(false);
+        }, 5000);
+
+        return () => clearTimeout(timeoutID);
+    }, [isShowingCopiedAlert]);
 
     return (
         <div
@@ -188,17 +178,13 @@ export default function Home() {
             <div
                 className={`w-full flex flex-col justify-center items-center transition-opacity duration-200 ease-in-out ${fileData ? "opacity-100" : "opacity-0"}`}
             >
-                {fileData && (
-                    <div className={"text-center pb-4"}>
-                        <p>{fileData.name} is ready!</p>
-                        {fileValidityTimer && (
-                            <p className={"text-sm text-tertiary"}>
-                                This link is only valid for{" "}
-                                {getCountdownTime(fileValidityTimer)}
-                            </p>
-                        )}
-                    </div>
-                )}
+                <div className={"text-center pb-4"}>
+                    <p>{fileData?.name} is ready!</p>
+                    <p className={"text-sm text-tertiary"}>
+                        This link is only valid for{" "}
+                        {getCountdownTime(fileValidityTimer || 0)}
+                    </p>
+                </div>
                 <div
                     className={`p-2 rounded-lg flex justify-center items-center `}
                 >
@@ -208,7 +194,9 @@ export default function Home() {
                             className={
                                 "text-secondary hover:scale-150 hover:text-accent transition-transform duration-200 ease-in-out"
                             }
-                            onClick={handleDownloadFile}
+                            onClick={() =>
+                                handleDownloadFile(fileData?.id || "")
+                            }
                         />
                     </div>
                     <div className={"w-20  flex justify-center items-center"}>
@@ -221,6 +209,12 @@ export default function Home() {
                         />
                     </div>
                 </div>
+            </div>
+
+            <div
+                className={`absolute w-32 p-4 bottom-3 right-3 text-base text-center border rounded-lg transition-opacity duration-300 ease-in-out ${isShowingCopiedAlert ? "opacity-100" : "opacity-0"}`}
+            >
+                Copied
             </div>
         </div>
     );
